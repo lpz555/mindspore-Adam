@@ -80,7 +80,7 @@ MindSpore Vision是一个开源的基于MindSpore框架的计算机视觉研究�
 案例实现所使用的数据即MNIST数据集，可以从http://yann.lecun.com/exdb/mnist/ 中下载，下载好的数据集包括4个文件，分别对应测试集图像、测试集标签、训练集图像、训练集样本，文件路径结构如下：
 
 ```
-./mnist/
+./data/MNIST_Data
 ├── test
 │   ├── t10k-images-idx3-ubyte
 │   └── t10k-labels-idx1-ubyte
@@ -93,16 +93,58 @@ MNIST数据集是由10类28∗28的灰度图片组成。
 
 #### **数据集准备与加载**
 ```python
-from mindvision.dataset import Mnist
+fimport os
+from mindvision.dataset import DownLoad
 
-# 下载并处理MNIST数据集
-download_train = Mnist(path="./mnist", split="train", batch_size=32, repeat_num=1, shuffle=True, resize=32, download=True)
+#数据集下载路径
+dataset_url = "https://mindspore-website.obs.cn-north-4.myhuaweicloud.com/" \
+      "notebook/datasets/MNIST_Data.zip"
+save_dir = "./data"
 
-download_eval = Mnist(path="./mnist", split="test", batch_size=32, resize=32, download=True)
-
-dataset_train = download_train.run()
-dataset_eval = download_eval.run()
+#数据集下载
+dl = DownLoad()
+if not(os.path.exists(save_dir+"/mnist-bin")):
+    dl.download_and_extract_archive(dataset_url, save_dir)
 ```
+
+```python
+from mindvision.dataset import Mnist
+from mindspore.dataset import MnistDataset
+
+#数据集下载
+# 训练集
+dataset_train = MnistDataset(save_dir+"/MNIST_Data/train",shuffle=True) 
+# 测试集
+dataset_eval = MnistDataset(save_dir+"/MNIST_Data/test",shuffle=True) 
+```
+```python
+import mindspore as ms
+from mindspore.dataset import vision, transforms
+
+#数据集处理: datapipe()
+def datapipe(dataset, batch_size,usage):
+    image_transforms=[
+        vision.Resize((32, 32)),
+        vision.Rescale(1.0 / 255.0,0),
+        vision.HWC2CHW()
+    ]
+
+    label_transform = transforms.TypeCast(ms.int32)
+    dataset = dataset.map(image_transforms, 'image')
+    dataset = dataset.map(label_transform, 'label')
+    dataset = dataset.batch(batch_size)
+
+    return dataset
+```
+```python
+#处理数据集
+BATCH_SIZE = 32
+
+dataset_train = datapipe(dataset_train,BATCH_SIZE,"train")
+dataset_eval = datapipe(dataset_eval,BATCH_SIZE,"test")
+```
+
+
 ### **2.2 模型构建**
 Lenet除去输入层共有7层，其中有2个卷积层，2个子采样（pooling）层，3个全连接层，网络模型结构如下图所示。
 <center>
@@ -191,13 +233,17 @@ import mindspore as ms
 
 # 实例化model类
 model = Model(network, loss_fn=net_loss, optimizer=net_opt, metrics={'accuracy'})
+
 # 加载已经保存的用于测试的模型
 param_dict = ms.load_checkpoint("./lenet/lenet-1_1875.ckpt")
+
 # 加载参数到网络中
 ms.load_param_into_net(network, param_dict)
 
-mnist = Mnist("./mnist", split="test", batch_size=6, resize=32)
-dataset_infer = mnist.run()
+#加载测试集
+dataset_infer = MnistDataset(save_dir+"/MNIST_Data/test",shuffle=True) 
+dataset_infer = datapipe(dataset_infer,BATCH_SIZE,"test")
+
 ds_test = dataset_infer.create_dict_iterator()
 data = next(ds_test)
 images = data["image"].asnumpy()
@@ -218,7 +264,7 @@ print(f'Predicted: "{predicted}"')
 print(f'Actual:    "{labels}"')
 ```
 <center>
-    <img src="./image/predict.png" alt="image-20220819101847606" width=52% />
+    <img src="./image/predict.png" alt="image-20220819101847606" width=90% />
     <br>
     <div style="color:orange;
     display: inline-block;
