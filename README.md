@@ -103,7 +103,7 @@ save_dir = "./data"
 
 #数据集下载
 dl = DownLoad()
-if not(os.path.exists(save_dir+"/mnist-bin")):
+if not(os.path.exists(save_dir+"/MNIST_Data.zip")):
     dl.download_and_extract_archive(dataset_url, save_dir)
 ```
 
